@@ -6,9 +6,17 @@ module Transmission
     def on_torrent_started(&blk); @on_torrent_started = blk; callback_initialized; end
     def on_torrent_removed(&blk); @on_torrent_removed = blk; callback_initialized; end
     
-    def initialize(host='localhost',port=9091, username = nil, password = nil)
+    def initialize(host = 'localhost', port = 9091, username = nil, password = nil)
       Connection.init(host, port, username, password)
       @torrents = nil
+    end
+    
+    def periodic_timeout=(val)
+      @periodic_timeout = val
+    end
+    
+    def periodic_timeout
+      @periodic_timeout || 1
     end
     
     def start_all &cb
@@ -39,15 +47,17 @@ module Transmission
       if a['filename'].nil? && a['metainfo'].nil?
         raise "You need to provide either a 'filename' or 'metainfo'."
       end
-      Connection.send('torrent-add', a)
+      Connection.send('torrent-add', a) do |resp|
+        yield resp if block_given?
+      end
     end
     
-    def add_torrent_by_file(filename)
-      add_torrent({'filename' => filename})
+    def add_torrent_by_file(filename, &clb)
+      add_torrent({'filename' => filename}, &clb)
     end
     
-    def add_torrent_by_data(data)
-      add_torrent({'metainfo' => data})
+    def add_torrent_by_data(data, &clb)
+      add_torrent({'metainfo' => data}, &clb)
     end
     
     def session
@@ -66,8 +76,11 @@ module Transmission
     
     private
     def callback_initialized
-      return if @torrent_poller
-      @torrent_poller = EM.add_periodic_timer(1) do
+      handle_callbacks
+    end
+    
+    def handle_callbacks
+      EM.add_timer(periodic_timeout) do
         updated_torrents = {}
         self.torrents do |tors|
           tors.each do |torrent|
@@ -76,8 +89,7 @@ module Transmission
           compare_torrent_status updated_torrents
           @torrents = updated_torrents.dup
         end
-        
-        
+        handle_callbacks
       end
     end
     
