@@ -36,7 +36,7 @@ module Transmission
       
       def send(method, attributes={})
         request(method, attributes) do |resp|
-          yield resp
+          yield resp if block_given?
         end
       end
       

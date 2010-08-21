@@ -60,17 +60,31 @@ module Transmission
       add_torrent({'metainfo' => data}, &clb)
     end
     
+    #TODO handler for resp['status'] != 'success'
     def session
-      Connection.request('session-get') { |resp| yield Session.new resp }
+      Connection.request('session-get') do |resp| 
+        if resp == :connection_error
+  	      yield :connection_error
+	      else
+          yield Session.new resp
+        end
+      end
     end
     
-    def torrents(fields = nil)
-  	  Connection.request('torrent-get', {'fields' => fields ? fields : Transmission::Torrent::ATTRIBUTES}) { |resp| 
-  	    torrs = []
-  	    resp['torrents'].each do |t|
-  	      torrs << Torrent.new(t)
-		    end
-		    yield torrs
+    #TODO handler for resp['status'] != 'success'
+    # options = { 'fields' => ['id'], 'ids' => [1,4,6] }
+    def torrents(options = {})
+      params = { 'fields' => Transmission::Torrent::ATTRIBUTES}.merge options
+  	  Connection.request('torrent-get', params) { |resp| 
+  	    if resp == :connection_error
+  	      yield :connection_error
+	      else
+    	    torrs = []
+    	    resp['torrents'].each do |t|
+    	      torrs << Torrent.new(t)
+  		    end
+  		    yield torrs		      
+	      end
 	    }
     end
     
