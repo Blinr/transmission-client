@@ -30,7 +30,7 @@ module Transmission
           end
         }
         req.errback {
-          raise "Unknown response."
+          yield :connection_error
         }
       end
       
